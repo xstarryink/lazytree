@@ -1,5 +1,5 @@
 ﻿/*
-wangxin 2020-9-30
+wangxin 2020-09-30
 懒树 lazytree
 */
 #ifndef __lazytree_h__
