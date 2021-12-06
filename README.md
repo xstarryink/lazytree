@@ -1,6 +1,7 @@
 # lazytree
 懒树相关
 具体介绍可见：https://www.bilibili.com/video/BV1vS4y1X7RX/
+其中代码是基于Windows的，Linux的话需要自己转化一下。
 
 lazytree.h : 为测试视频中用于测试的懒树。
 
