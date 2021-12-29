@@ -1,0 +1,397 @@
+/*
+wangxin 2020-9-30
+基于查找树的懒树 bslazytree
+*/
+#ifndef __bslazytree_h__
+#define __bslazytree_h__
+
+class bslazytree
+{
+
+    struct tree_node
+    {
+        unsigned long key;
+        tree_node *left;
+        tree_node *right;
+
+        tree_node()
+            :key(0)
+            , left(nullptr)
+            , right(nullptr)
+        {
+
+        }
+    };
+
+public:
+
+    bslazytree()
+        :m_root(nullptr)
+        , m_size(0)
+        , m_rootpower(0)
+    {
+    }
+
+    ~bslazytree()
+    {
+        clear();
+    }
+
+    //插入
+    void insert(unsigned long key)
+    {
+        //0作为标记使用
+        if (++key == 0) return;
+        unsigned long power = log2_32bit(key);
+        if (power > m_rootpower)
+        {
+            tree_node *parent = nullptr;
+            tree_node *node = new tree_node;
+            node->left = m_root;
+            if (m_root)
+            {
+                tree_node *root = node;
+                tree_node *coveragenode = nullptr;
+                for (int i = m_rootpower + 1; i < power; ++i)
+                {
+                    if (!coverage(node, parent, coveragenode))
+                    {
+                        coveragenode->left = root;
+                        coveragenode->right = nullptr;
+                        node = coveragenode;
+                        break;
+                    }
+                    if (i == power - 1)
+                    {
+                        //最后一次
+                        coveragenode->left = root;
+                        coveragenode->right = nullptr;
+                        node = coveragenode;
+                    }
+                    else
+                    {
+                        coveragenode->left = node->left;
+                        coveragenode->right = nullptr;
+                        node->left = coveragenode;
+                        node = coveragenode;
+                    }
+                }
+            }
+            node->key = key;
+            m_root = node;
+            m_rootpower = power;
+            ++m_size;
+        }
+        else
+        {
+            power = m_rootpower;
+            unsigned long value = 1 << power;
+            tree_node **pnode = &m_root;
+            while (true)
+            {
+                if (*pnode == nullptr)
+                {
+                    *pnode = new tree_node;
+                    (*pnode)->key = key;
+                    ++m_size;
+                    return;
+                }
+                else
+                {
+                    if (key == (*pnode)->key) return;
+                    if ((*pnode)->key == 0)
+                    {
+                        (*pnode)->key = key;
+                        ++m_size;
+                        return;
+                    }
+                    if (key == value)
+                    {
+                        std::swap(key, (*pnode)->key);
+                    }
+                    if (key < value)
+                    {
+                        if ((*pnode)->key < key)
+                        {
+                            std::swap(key, (*pnode)->key);
+                        }
+                        pnode = &((*pnode)->left);
+                        value -= 1 << (--power);
+                    }
+                    else //key > value
+                    {
+                        if ((*pnode)->key > key)
+                        {
+                            std::swap(key, (*pnode)->key);
+                        }
+                        pnode = &((*pnode)->right);
+                        value += 1 << (--power);
+                    }
+                }
+            }
+        }
+    }
+
+    //删除
+    void erase(unsigned long key)
+    {
+        //0作为标记使用
+        if (++key == 0) return;
+        tree_node *parent = nullptr;
+        tree_node *node = find_node(key, parent);
+        if (node == nullptr) return;
+        near_replace(node, parent);
+        --m_size;
+    }
+
+    //查找
+    bool find(unsigned long key)
+    {
+        //0作为标记使用
+        if (++key == 0) return false;
+        tree_node *parent = nullptr;
+        return find_node(key, parent) != nullptr;
+    }
+
+    unsigned long size()
+    {
+        return m_size;
+    }
+
+    void clear()
+    {
+        remove(m_root, nullptr);
+        m_root = nullptr;
+        m_size = 0;
+    }
+
+#include <vector>
+    bool test_orderly()
+    {
+        //测试用，检查是否有序
+        if (m_root == nullptr) return true;
+        unsigned long key = 0;
+        std::vector<unsigned long> keys;
+        bool ret = test_orderly_step(m_root, key, keys);
+        return ret;
+    }
+    bool test_orderly_step(tree_node *node, unsigned long &key, std::vector<unsigned long> &keys)
+    {
+        if (node->left)
+        {
+            if (!test_orderly_step(node->left, key, keys))
+            {
+                return false;
+            }
+        }
+        if (node->key != 0)
+        {
+            if (key > node->key)
+            {
+                return false;
+            }
+            key = node->key;
+            keys.push_back(key);
+        }
+        if (node->right)
+        {
+            if (!test_orderly_step(node->right, key, keys))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+private:
+
+    tree_node *find_node(unsigned long key, tree_node *&parent)
+    {
+        tree_node *node = m_root;
+        parent = nullptr;
+        bool right = false;//false:left;true:right
+        while (true)
+        {
+            if (node == nullptr)
+            {
+                return nullptr;
+            }
+            else
+            {
+                if (key == node->key) return node;
+                parent = node;//parent是返回值
+                if (key < node->key) node = node->left;
+                else node = node->right;
+            }
+        }
+    }
+
+    void near_replace(tree_node *node, tree_node *parent)
+    {
+        //换前驱或后继直到叶子节点
+        while (node)
+        {
+            //优先找前驱
+            bool successor = false;//false:precursor，前驱;true:successor，后继
+            tree_node *current = node;
+            tree_node *child = node->left;
+            if (child == nullptr)
+            {
+                successor = true;
+                child = node->right;
+            }
+            if (child == nullptr)
+            {
+                //左右节点都空，也就是到了叶子节点
+                break;
+            }
+            while (child)
+            {
+                parent = node;
+                node = child;
+                child = successor ? node->left : node->right;
+            }
+            std::swap(current->key, node->key);
+        }
+        //删除叶子节点
+        if (parent)
+        {
+            if (parent->left == node)
+            {
+                parent->left = nullptr;
+            }
+            else
+            {
+                parent->right = nullptr;
+            }
+        }
+        else
+        {
+            //无父节点，则说明是根节点
+            m_root = nullptr;
+        }
+        delete node;
+    }
+
+    bool coverage(tree_node *node, tree_node *parent, tree_node *&abandon)
+    {
+        bool bHasRightChild = false;
+        //换前驱或后继直到叶子节点
+        while (node)
+        {
+            //优先找前驱
+            bool successor = false;//false:precursor，前驱;true:successor，后继
+            tree_node *current = node;
+            tree_node *child = node->left;
+            if (child == nullptr)
+            {
+                successor = true;
+                child = node->right;
+            }
+            if (child == nullptr)
+            {
+                //左右节点都空，也就是到了叶子节点
+                break;
+            }
+            if (node->right)
+            {
+                bHasRightChild = true;
+            }
+            while (child)
+            {
+                parent = node;
+                node = child;
+                child = successor ? node->left : node->right;
+                if (node->right)
+                {
+                    bHasRightChild = true;
+                }
+            }
+            std::swap(current->key, node->key);
+        }
+        //删除叶子节点
+        if (parent)
+        {
+            if (parent->left == node)
+            {
+                parent->left = nullptr;
+            }
+            else
+            {
+                parent->right = nullptr;
+            }
+        }
+        else
+        {
+            //无父节点，则说明是根节点
+            m_root = nullptr;
+        }
+        abandon = node;
+        return bHasRightChild;
+    }
+
+    void remove(tree_node *node, tree_node *parent)
+    {
+        if (node)
+        {
+            if (parent)
+            {
+                //如果有父节点，需要需要断绝父子关系，将对应子节点置空
+                if (parent->left == node)
+                {
+                    parent->left = nullptr;
+                }
+                else
+                {
+                    parent->right = nullptr;
+                }
+            }
+            //如果还有子节点，则需要删除
+            //因为该节点本身已经失去了意义，所以其子节点的父节点可以传空，不需要断绝父子关系
+            if (node->left)
+            {
+                remove(node->left, nullptr);
+            }
+            if (node->right)
+            {
+                remove(node->right, nullptr);
+            }
+            delete node;
+        }
+    }
+
+    inline unsigned long log2_32bit(unsigned long v)
+    {
+        static const char log_table_256[256] =
+        {
+#define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
+            - 1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+            LT(4), LT(5), LT(5), LT(6), LT(6), LT(6), LT(6),
+            LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)
+        };
+
+        unsigned r;// r will be lg(v)
+        unsigned long t, tt;// temporaries
+
+        if (tt = v >> 16)
+        {
+            r = (t = tt >> 8) ? 24 + log_table_256[t] : 16 + log_table_256[tt];
+        }
+        else
+        {
+            r = (t = v >> 8) ? 8 + log_table_256[t] : log_table_256[v];
+        }
+        return r;
+    }
+
+private:
+
+    tree_node *m_root;
+
+    unsigned long m_size;
+
+    unsigned long m_rootpower;
+
+};
+
+#endif //__bslazytree_h__
