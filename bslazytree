@@ -207,9 +207,10 @@ private:
 
     tree_node *find_node(unsigned long key, tree_node *&parent)
     {
+        unsigned long power = m_rootpower;
+        unsigned long value = 1 << power;
         tree_node *node = m_root;
         parent = nullptr;
-        bool right = false;//false:left;true:right
         while (true)
         {
             if (node == nullptr)
@@ -219,9 +220,18 @@ private:
             else
             {
                 if (key == node->key) return node;
+                if (key == value) return nullptr;
                 parent = node;//parent是返回值
-                if (key < node->key) node = node->left;
-                else node = node->right;
+                if (key < node->key)
+                {
+                    value -= 1 << (--power);
+                    node = node->left;
+                }
+                else
+                {
+                    value += 1 << (--power);
+                    node = node->right;
+                }
             }
         }
     }
