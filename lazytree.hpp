@@ -4,6 +4,7 @@
 #include<bits/move.h>
 #include<bit>
 #include<limits>
+#include<cstddef>
 namespace{struct EmptyClass{};}
 template<typename key_t,typename value_t=EmptyClass> requires std::is_integral_v<key_t>
 class LazyTree
@@ -24,52 +25,62 @@ class LazyTree
 	};
 	static constexpr key_t invalidKey{};
 	ptrNode root;
+	std::size_t m_size;
 	Node *HalfwayInsert(const key_t key,key_t mask,ptrNode *cur_node)
 	{
 		for(;mask&&(*cur_node)&&((*cur_node)->key!=invalidKey)&&((*cur_node)->key!=key);mask>>=1)
-		{
 			cur_node=(*cur_node)->son+static_cast<bool>(key&mask);
-		}
-		if((!(*cur_node))||(((*cur_node)->key)==invalidKey))
+		++m_size;
+		if(!(*cur_node))
 		{
 //			found an empty node on the way home
 //			get lazy
 			cur_node->reset(new Node(key));
 			return cur_node->get();
 		}
-		else
+		else if(((*cur_node)->key)==invalidKey)
+		{
+			(*cur_node)->key=key;
+			return cur_node->get();
+		}
+		else if((*cur_node)->key!=key)
 		{
 //			this is home and the node is occupied
 //			expel the occupier
-			if((*cur_node)->key!=key)
-			{
-				key_t occupier=(*cur_node)->key;
-				(*cur_node)->key=key;
-				dynamic_cast<value_t&>(*HalfwayInsert(occupier,key_t(1)<<highbit(occupier)>>highbit(key)>>1,cur_node))=std::move(dynamic_cast<value_t&>(**cur_node));
-				return cur_node->get();
-			}
-			else
-			{
-				throw "Key already exist";
-			}
+			key_t occupier=(*cur_node)->key;
+			(*cur_node)->key=key;
+			dynamic_cast<value_t&>(*HalfwayInsert(occupier,key_t(1)<<highbit(occupier)>>highbit(key)>>1,cur_node))=std::move(dynamic_cast<value_t&>(**cur_node));
+			return cur_node->get();
+		}
+		else
+		{
+//			key already exist
+			--m_size;
+			throw "Key already exist";
 		}
 	}
 	void eraseNode(ptrNode *node)
 	{
 		if(((*node)->son[0])||((*node)->son[1]))
-		{
 			(*node)->key=invalidKey;
-		}
 		else
-		{
 			node->reset();
-		}
 	}
 public:
 	LazyTree()noexcept=default;
+	LazyTree(const LazyTree&)=delete;
+	LazyTree(LazyTree &&b)noexcept
+	:root(b.root.release()),m_size{b.m_size}{}
+	LazyTree operator=(const LazyTree&)noexcept=delete;
+	LazyTree operator=(LazyTree &&b)noexcept
+	{
+		root.reset(b.root.release());
+		m_size=b.m_size;
+	}
 	~LazyTree()=default;
 	void clear()
 	{
+		m_size=0;
 		root.reset(nullptr);
 	}
 	value_t& insert(key_t key)
@@ -86,9 +97,7 @@ public:
 		for(;mask&&(*cur_node)&&((*cur_node)->key)!=key;mask>>=1)
 		{
 			if((*cur_node)->key==invalidKey)
-			{
 				emptyNode=cur_node->get();
-			}
 			cur_node=(*cur_node)->son+static_cast<bool>(key&mask);
 		}
 		if((*cur_node)&&((*cur_node)->key==key))
@@ -155,5 +164,24 @@ public:
 			eraseNode(cur_node);
 		else
 			throw "key not found";
+		--m_size;
 	}
+	std::size_t size() const noexcept
+	{
+		return m_size;
+	}
+	bool empty() const noexcept
+	{
+		return m_size==0;
+	}
+	std::size_t max_size() const noexcept
+	{
+		return std::numeric_limits<size_t>::max();
+	}
+	void swap(LazyTree &b) noexcept
+	{
+		std::swap(root,b.root);
+		std::swap(m_size,b.m_size);
+	}
+
 };
